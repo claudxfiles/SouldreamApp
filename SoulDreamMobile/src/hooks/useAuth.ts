@@ -5,13 +5,13 @@ import * as AuthSession from 'expo-auth-session';
 import * as SecureStore from 'expo-secure-store';
 import { googleAuthConfig } from '../config/auth.config';
 import { Platform } from 'react-native';
+import { useEffect, useState } from 'react';
 
-const SECURE_STORE_TOKEN_KEY = 'sessionToken';
-const SECURE_STORE_USER_KEY = 'sessionUser';
+// Comentado por ahora, llamar si es necesario para Expo Router en un layout global.
+// WebBrowser.maybeCompleteAuthSession();
 
-if (Platform.OS === 'web') {
-  WebBrowser.maybeCompleteAuthSession();
-}
+const AUTH_TOKEN_KEY = 'souldream_auth_token';
+const USER_INFO_KEY = 'souldream_user_info';
 
 interface UserInfo {
   id?: string;
@@ -20,164 +20,167 @@ interface UserInfo {
   picture?: string;
 }
 
-export const useAuth = () => {
-  const [userInfo, setUserInfo] = React.useState<UserInfo | null>(null);
-  const [appToken, setAppToken] = React.useState<string | null>(null);
-  const [isLoading, setIsLoading] = React.useState(true);
-  const [isAuthenticating, setIsAuthenticating] = React.useState(false);
+interface User {
+  id: string;
+  email: string;
+  name: string;
+  // Agrega otros campos relevantes que tu backend devuelva sobre el usuario
+  // Ejemplo: profilePictureUrl?: string;
+}
 
-  const redirectUri = AuthSession.makeRedirectUri({
-    preferLocalhost: Platform.OS === 'web',
-    useProxy: Platform.OS !== 'web',
-  } as AuthSession.AuthSessionRedirectUriOptions);
-  console.log("Generated Redirect URI:", redirectUri);
+export interface AuthState {
+  user: User | null;
+  isLoading: boolean;
+  isAuthenticating: boolean;
+  signIn: () => Promise<void>;
+  signOut: () => Promise<void>;
+}
+
+// TODO: Reemplaza esta URL con la URL real de tu endpoint de backend para autenticación móvil con Google
+// Ejemplo: 'http://192.168.1.100:8000/api/v1/auth/google-mobile' o 'https://tuapi.souldream.com/api/v1/auth/google-mobile'
+const BACKEND_GOOGLE_AUTH_URL = 
+  process.env.EXPO_PUBLIC_API_URL 
+    ? `${process.env.EXPO_PUBLIC_API_URL}/auth/google-mobile` 
+    : 'http://localhost:8000/api/v1/auth/google-mobile'; // Placeholder, asegúrate que sea accesible desde el móvil
+
+export const useAuth = (): AuthState => {
+  const [user, setUser] = useState<User | null>(null);
+  const [isLoading, setIsLoading] = useState(true); // Carga inicial de token/usuario
+  const [isAuthenticating, setIsAuthenticating] = useState(false); // Proceso de login activo
 
   const [request, response, promptAsync] = Google.useAuthRequest({
-    clientId: googleAuthConfig.expoClientId,
-    iosClientId: googleAuthConfig.iosClientId,
-    androidClientId: googleAuthConfig.androidClientId,
-    webClientId: googleAuthConfig.webClientId,
-    scopes: googleAuthConfig.scopes,
-    redirectUri: redirectUri,
+    expoClientId: process.env.EXPO_PUBLIC_WEB_CLIENT_ID,
+    iosClientId: process.env.EXPO_PUBLIC_IOS_CLIENT_ID,
+    androidClientId: process.env.EXPO_PUBLIC_ANDROID_CLIENT_ID,
+    // Opcional: puedes solicitar scopes adicionales si los necesitas
+    // scopes: ['profile', 'email'], 
+    selectAccount: true, 
   });
 
-  React.useEffect(() => {
-    const loadSession = async () => {
+  useEffect(() => {
+    const loadStoredData = async () => {
       setIsLoading(true);
       try {
-        const storedToken = await SecureStore.getItemAsync(SECURE_STORE_TOKEN_KEY);
-        const storedUser = await SecureStore.getItemAsync(SECURE_STORE_USER_KEY);
+        const storedToken = await SecureStore.getItemAsync(AUTH_TOKEN_KEY);
+        const storedUserInfo = await SecureStore.getItemAsync(USER_INFO_KEY);
 
-        if (storedToken && storedUser) {
-          setAppToken(storedToken);
-          setUserInfo(JSON.parse(storedUser));
-          console.log('Session loaded from secure store.');
+        if (storedToken && storedUserInfo) {
+          // TODO: Valida el token con tu backend aquí en producción.
+          setUser(JSON.parse(storedUserInfo));
+          console.log('Auth: Usuario y token cargados desde SecureStore.');
+        } else {
+          console.log('Auth: No se encontró usuario o token en SecureStore.');
         }
-      } catch (e) {
-        console.error('Failed to load session from secure store', e);
-        await SecureStore.deleteItemAsync(SECURE_STORE_TOKEN_KEY);
-        await SecureStore.deleteItemAsync(SECURE_STORE_USER_KEY);
+      } catch (error) {
+        console.error('Auth: Error cargando datos desde SecureStore:', error);
+        await SecureStore.deleteItemAsync(AUTH_TOKEN_KEY).catch(e => console.error('Auth: Error borrando token corrupto', e));
+        await SecureStore.deleteItemAsync(USER_INFO_KEY).catch(e => console.error('Auth: Error borrando info de usuario corrupta', e));
+      } finally {
+        setIsLoading(false);
       }
-      setIsLoading(false);
     };
-    loadSession();
+    loadStoredData();
   }, []);
 
-  React.useEffect(() => {
-    const handleResponse = async () => {
-      if (response?.type === 'success') {
-        const { authentication } = response;
+  useEffect(() => {
+    const handleGoogleResponse = async () => {
+      if (response?.type === 'success' && response.authentication?.idToken) {
+        if (isAuthenticating) return; // Prevenir procesamiento múltiple si ya está en curso
         setIsAuthenticating(true);
-        
-        if (authentication?.accessToken) {
-          try {
-            console.log('Google Access Token:', authentication.accessToken);
-            console.log('Google ID Token:', authentication.idToken);
+        const { idToken } = response.authentication;
+        console.log('Auth: Google idToken obtenido en frontend:', idToken.substring(0, 60) + '...');
 
-            const MOCK_BACKEND_RESPONSE = {
-              appToken: `fake-backend-token-for-${authentication.idToken?.substring(0, 10)}`,
-              user: {
-                id: 'mock-user-id',
-                email: (await (await fetch('https://www.googleapis.com/userinfo/v2/me', { headers: { Authorization: `Bearer ${authentication.accessToken}` } })).json()).email,
-                name: (await (await fetch('https://www.googleapis.com/userinfo/v2/me', { headers: { Authorization: `Bearer ${authentication.accessToken}` } })).json()).name,
-                picture: (await (await fetch('https://www.googleapis.com/userinfo/v2/me', { headers: { Authorization: `Bearer ${authentication.accessToken}` } })).json()).picture,
-              }
-            };
-            
-            const receivedAppToken = MOCK_BACKEND_RESPONSE.appToken;
-            const receivedUserInfo = MOCK_BACKEND_RESPONSE.user;
+        try {
+          console.log(`Auth: Enviando idToken a backend: ${BACKEND_GOOGLE_AUTH_URL}`);
+          const backendResponse = await fetch(BACKEND_GOOGLE_AUTH_URL, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ token: idToken }),
+          });
 
-            await SecureStore.setItemAsync(SECURE_STORE_TOKEN_KEY, receivedAppToken);
-            await SecureStore.setItemAsync(SECURE_STORE_USER_KEY, JSON.stringify(receivedUserInfo));
-            
-            setAppToken(receivedAppToken);
-            setUserInfo(receivedUserInfo);
-            console.log('User authenticated and session stored.', receivedUserInfo);
+          const responseBodyText = await backendResponse.text();
+          console.log('Auth: Respuesta del backend (texto):', responseBodyText);
 
-          } catch (error) {
-            console.error("Error during backend token exchange or fetching user info:", error);
-            await SecureStore.deleteItemAsync(SECURE_STORE_TOKEN_KEY);
-            await SecureStore.deleteItemAsync(SECURE_STORE_USER_KEY);
-            setAppToken(null);
-            setUserInfo(null);
-          } finally {
-            setIsAuthenticating(false);
+          if (!backendResponse.ok) {
+            throw new Error(
+              `Error del backend: ${backendResponse.status} - ${responseBodyText}`
+            );
           }
-        } else {
-          console.log('Google authentication response did not include an access token.');
+          
+          const backendData = JSON.parse(responseBodyText);
+
+          if (backendData.token && backendData.user) {
+            await SecureStore.setItemAsync(AUTH_TOKEN_KEY, backendData.token);
+            await SecureStore.setItemAsync(USER_INFO_KEY, JSON.stringify(backendData.user));
+            setUser(backendData.user);
+            console.log('Auth: Usuario autenticado por backend y datos guardados:', backendData.user);
+          } else {
+            throw new Error('Auth: Respuesta inesperada del backend: falta token o usuario.');
+          }
+        } catch (error) {
+          console.error('Auth: Error en el intercambio de token con el backend:', error);
+        } finally {
           setIsAuthenticating(false);
         }
       } else if (response?.type === 'error') {
-        console.error('Google Authentication Error:', response.error);
-        setIsAuthenticating(false);
+        console.error('Auth: Error de autenticación con Google:', response.error);
+        setIsAuthenticating(false); // Asegurar que se resetea
       } else if (response?.type === 'cancel') {
-        console.log('User cancelled Google authentication');
-        setIsAuthenticating(false);
+        console.log('Auth: Autenticación con Google cancelada por el usuario.');
+        setIsAuthenticating(false); // Asegurar que se resetea
       } else if (response?.type === 'dismiss') {
-        console.log('Google authentication dismissed by user or system');
-        setIsAuthenticating(false);
+        console.log('Auth: Autenticación con Google descartada (dismissed).');
+        setIsAuthenticating(false); // Asegurar que se resetea
       }
     };
 
-    if (response) {
-      handleResponse();
+    if (request && response) {
+      handleGoogleResponse();
     }
-  }, [response]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps 
+  }, [response]); // Solo queremos reaccionar a cambios en 'response'. 'request' es estable.
 
-  const signInWithGoogle = async () => {
+  const signIn = async () => {
     if (isAuthenticating || isLoading) return;
-    setIsAuthenticating(true);
+    console.log('Auth: Iniciando signIn...');
+    setIsAuthenticating(true); 
     try {
-      console.log('Attempting to sign in with Google via promptAsync...');
-      await promptAsync();
-    } catch (error) {
-      console.error("Error calling promptAsync for Google sign-in:", error);
+      const promptResult = await promptAsync(); 
+      if (promptResult?.type !== 'success') {
+        // Si no es success (puede ser cancel, dismiss, o error manejado por el useEffect de response)
+        // Lo ponemos en false aquí para permitir reintentos si no hubo error de red grave.
+        setIsAuthenticating(false);
+        console.log(`Auth: promptAsync no resultó en success, tipo: ${promptResult?.type}`);
+      }
+      // El useEffect [response] manejará 'success' o errores de la respuesta.
+    } catch (error: any) {
+      console.error('Auth: Error al invocar promptAsync:', error.message);
       setIsAuthenticating(false);
     }
   };
 
-  const signOut = async (updateLoadingState = true) => {
-    if (updateLoadingState) setIsAuthenticating(true);
+  const signOut = async () => {
+    console.log('Auth: Iniciando signOut...');
+    setIsLoading(true);
     try {
-      let googleAccessTokenToRevoke: string | undefined = undefined;
-      if (response?.type === 'success' && response.authentication?.accessToken) {
-        googleAccessTokenToRevoke = response.authentication.accessToken;
-      }
+      // Opcional: Revocar el token de Google si es necesario y si tienes el accessToken
+      // const googleAccessToken = (response as any)?.authentication?.accessToken;
+      // if (googleAccessToken) {
+      //   await Google.revokeAsync({ token: googleAccessToken, clientId: process.env.EXPO_PUBLIC_WEB_CLIENT_ID! }, { revocationEndpoint: Google.discovery?.revocationEndpoint! });
+      //   console.log('Auth: Token de Google revocado.');
+      // }
 
-      if (googleAccessTokenToRevoke) {
-        try {
-          await AuthSession.revokeAsync(
-            { token: googleAccessTokenToRevoke, clientId: googleAuthConfig.expoClientId },
-            { revocationEndpoint: 'https://oauth2.googleapis.com/revoke' }
-          );
-          console.log('Google access token revoked.');
-        } catch (e) {
-          console.error("Error revoking Google access token", e);
-        }
-      }
-
-      console.log('TODO: Call backend to invalidate session token:', appToken);
-
-      await SecureStore.deleteItemAsync(SECURE_STORE_TOKEN_KEY);
-      await SecureStore.deleteItemAsync(SECURE_STORE_USER_KEY);
-      setAppToken(null);
-      setUserInfo(null);
-      console.log('User signed out, local session cleared.');
+      await SecureStore.deleteItemAsync(AUTH_TOKEN_KEY);
+      await SecureStore.deleteItemAsync(USER_INFO_KEY);
+      setUser(null);
+      console.log('Auth: Usuario deslogueado y datos borrados de SecureStore.');
+      // Opcional: Informar al backend sobre el logout
     } catch (error) {
-      console.error('Error during sign out:', error);
+      console.error('Auth: Error durante el signOut:', error);
     } finally {
-      if (updateLoadingState) setIsAuthenticating(false);
+      setIsLoading(false);
     }
   };
 
-  return {
-    user: userInfo,
-    appToken,
-    isLoading,
-    isAuthenticating,
-    signInWithGoogle,
-    signOut,
-    isLoggedIn: !!appToken && !!userInfo,
-    redirectUriForConfig: redirectUri,
-  };
+  return { user, isLoading, isAuthenticating, signIn, signOut };
 }; 

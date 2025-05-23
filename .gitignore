@@ -55,4 +55,7 @@ ios/DerivedData/
 .history/
 
 # macOS
-.DS_Store 
+.DS_Store
+
+# Secrets
+.env 

@@ -3,12 +3,37 @@
     "name": "SoulDreamMobile",
     "slug": "SoulDreamMobile",
     "scheme": "souldreamapp",
+    "version": "1.0.0",
+    "orientation": "portrait",
+    "icon": "./assets/icon.png",
+    "userInterfaceStyle": "automatic",
+    "splash": {
+      "image": "./assets/splash.png",
+      "resizeMode": "contain",
+      "backgroundColor": "#ffffff"
+    },
+    "ios": {
+      "supportsTablet": true,
+      "bundleIdentifier": "com.souldream.app"
+    },
+    "android": {
+      "adaptiveIcon": {
+        "foregroundImage": "./assets/adaptive-icon.png",
+        "backgroundColor": "#ffffff"
+      },
+      "package": "com.souldream.app"
+    },
     "web": {
       "favicon": "./images/favicon/favicon-for-public/web-app-manifest-192x192.png"
     },
     "plugins": [
       "expo-secure-store"
-    ]
+    ],
+    "extra": {
+      "eas": {
+        "projectId": "8f68ee16-34c9-43d6-bbb5-815a0875f6d2"
+      }
+    }
   },
   "name": "SoulDreamMobile",
   "scheme": "souldreamapp"

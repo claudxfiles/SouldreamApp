@@ -1,18 +1,34 @@
 import React from 'react';
-import { StyleSheet, Text, View, StatusBar } from 'react-native';
+import { StyleSheet, StatusBar } from 'react-native';
 import { SafeAreaProvider, SafeAreaView } from 'react-native-safe-area-context';
-import theme from './src/styles/theme'; // Importando nuestro tema
+import { ThemeProvider, useTheme } from './src/theme';
+import { StyledText } from './src/components/common/StyledText';
+
+function AppContent() {
+  const theme = useTheme();
+
+  return (
+    <SafeAreaView style={[styles.safeArea, { backgroundColor: theme.colors.background }]}>
+      <StatusBar
+        barStyle={theme.colors.background === '#FFFFFF' ? 'dark-content' : 'light-content'}
+        backgroundColor={theme.colors.background}
+      />
+      <StyledText variant="h1" style={styles.title}>
+        ¡Hola, SoulDream Mobile!
+      </StyledText>
+      <StyledText variant="body" style={styles.subtitle}>
+        Fase de Configuración Lista.
+      </StyledText>
+    </SafeAreaView>
+  );
+}
 
 export default function App() {
   return (
     <SafeAreaProvider>
-      <SafeAreaView style={styles.safeArea}>
-        <StatusBar barStyle="dark-content" backgroundColor={theme.Colors.background} />
-        <View style={styles.container}>
-          <Text style={styles.text}>¡Hola, SoulDream Mobile!</Text>
-          <Text style={styles.textSub}>Fase de Configuración Lista.</Text>
-        </View>
-      </SafeAreaView>
+      <ThemeProvider>
+        <AppContent />
+      </ThemeProvider>
     </SafeAreaProvider>
   );
 }
@@ -20,25 +36,14 @@ export default function App() {
 const styles = StyleSheet.create({
   safeArea: {
     flex: 1,
-    backgroundColor: theme.Colors.background,
   },
-  container: {
-    flex: 1,
-    backgroundColor: theme.Colors.background,
-    alignItems: 'center',
-    justifyContent: 'center',
-    padding: theme.Spacing.md,
-  },
-  text: {
-    fontSize: theme.Fonts.size.xl,
-    fontWeight: theme.Fonts.weight.bold,
-    color: theme.Colors.primary,
+  title: {
     textAlign: 'center',
+    marginTop: 'auto',
   },
-  textSub: {
-    fontSize: theme.Fonts.size.md,
-    color: theme.Colors.textLight,
-    marginTop: theme.Spacing.sm,
+  subtitle: {
     textAlign: 'center',
+    marginTop: 8,
+    marginBottom: 'auto',
   },
 });
