@@ -1,0 +1,58 @@
+# Node.js
+node_modules/
+npm-debug.log
+yarn-error.log
+*.lock
+
+# Expo
+.expo/
+dist/
+*.jks
+*.p8
+*.p12
+*.key
+*.mobileprovision
+*.orig
+web-build/
+
+# Android
+android/build/
+android/app/build/
+android/.gradle/
+android/app/src/main/assets/app.manifest
+android/app/src/main/assets/index.android.bundle
+android/app/src/main/res/drawable-mdpi/shell_launch_background_image.png
+android/app/src/main/res/drawable-hdpi/shell_launch_background_image.png
+android/app/src/main/res/drawable-xhdpi/shell_launch_background_image.png
+android/app/src/main/res/drawable-xxhdpi/shell_launch_background_image.png
+android/app/src/main/res/drawable-xxxhdpi/shell_launch_background_image.png
+
+# iOS
+ios/build/
+ios/Pods/
+ios/.xcode.env.local
+ios/DerivedData/
+*.hmap
+*.ipa
+
+# Bundler
+.bundle/
+
+# Metro Bundler
+.metro-cache/
+
+# Temporary files
+*.swp
+*~
+*.tmp
+
+# IDE files
+.idea/
+*.iml
+.vscode/settings.json
+.vscode/tasks.json
+.vscode/launch.json
+.history/
+
+# macOS
+.DS_Store 
